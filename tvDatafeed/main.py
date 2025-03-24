@@ -39,19 +39,25 @@ class TvDatafeed:
     __ws_timeout = 5
 
     def __init__(self, username=None, password=None, token_cache_file="~/.tv_token.json"):
+        self.ws_debug = False
+
         self._token_cache_file = os.path.expanduser(token_cache_file)
         self._lock = threading.Lock()
 
         token = self._load_token()
-
+        print(token)
         if token:
-            super().__init__(token=token)
-        elif username and password:
-            self._token = self._login_and_get_token(username, password)
-            self._save_token(self._token)
-            super().__init__(token=self._token)
+            self.token = token
         else:
-            raise ValueError("Must provide either token or username/password")
+            if username and password:
+                self._token = self._login_and_get_token(username, password)
+                self._save_token(self._token)
+            else:
+                raise ValueError("Must provide either token or username/password")
+
+        self.ws = None
+        self.session = self.__generate_session()
+        self.chart_session = self.__generate_chart_session()
 
     def _load_token(self):
         if os.path.exists(self._token_cache_file):
@@ -72,8 +78,7 @@ class TvDatafeed:
     def _login_and_get_token(self, username, password):
         # Placeholder for real login logic
         # Replace this with real login request to get a token from TradingView
-        login_response = self.__auth(username, password)
-        token = login_response.get("token")
+        token = self.__auth(username, password)
         if not token:
             raise ValueError("Login failed, could not retrieve token")
         return token
