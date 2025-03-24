@@ -62,6 +62,31 @@ class TvDatafeed:
         self.session = self.__generate_session()
         self.chart_session = self.__generate_chart_session()
 
+    def __init__(
+        self,
+        token: str = None,
+    ) -> None:
+        """Create TvDatafeed object
+
+        Args:
+            username (str, optional): tradingview username. Defaults to None.
+            password (str, optional): tradingview password. Defaults to None.
+        """
+
+        self.ws_debug = False
+
+        self.token = token
+
+        if self.token is None:
+            self.token = "unauthorized_user_token"
+            logger.warning(
+                "you are using nologin method, data you access may be limited"
+            )
+
+        self.ws = None
+        self.session = self.__generate_session()
+        self.chart_session = self.__generate_chart_session()
+
     def __auth(self, username, password):
 
         if (username is None or password is None):
@@ -303,6 +328,8 @@ class TvDatafeed:
 
         return symbols_list
 
+    def get_token(self):
+        return self.token
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
