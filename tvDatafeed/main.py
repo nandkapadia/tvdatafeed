@@ -2,9 +2,11 @@ import datetime
 import enum
 import json
 import logging
+import os
 import random
 import re
 import string
+import threading
 import pandas as pd
 from websocket import create_connection
 import requests
@@ -36,56 +38,45 @@ class TvDatafeed:
     __signin_headers = {'Referer': 'https://www.tradingview.com'}
     __ws_timeout = 5
 
-    def __init__(
-        self,
-        username: str = None,
-        password: str = None,
-    ) -> None:
-        """Create TvDatafeed object
+    def __init__(self, username=None, password=None, token_cache_file="~/.tv_token.json"):
+        self._token_cache_file = os.path.expanduser(token_cache_file)
+        self._lock = threading.Lock()
 
-        Args:
-            username (str, optional): tradingview username. Defaults to None.
-            password (str, optional): tradingview password. Defaults to None.
-        """
+        token = self._load_token()
 
-        self.ws_debug = False
+        if token:
+            super().__init__(token=token)
+        elif username and password:
+            self._token = self._login_and_get_token(username, password)
+            self._save_token(self._token)
+            super().__init__(token=self._token)
+        else:
+            raise ValueError("Must provide either token or username/password")
 
-        self.token = self.__auth(username, password)
+    def _load_token(self):
+        if os.path.exists(self._token_cache_file):
+            try:
+                with open(self._token_cache_file, "r") as f:
+                    return json.load(f).get("token")
+            except Exception:
+                return None
+        return None
 
-        if self.token is None:
-            self.token = "unauthorized_user_token"
-            logger.warning(
-                "you are using nologin method, data you access may be limited"
-            )
+    def _save_token(self, token):
+        try:
+            with open(self._token_cache_file, "w") as f:
+                json.dump({"token": token}, f)
+        except Exception as e:
+            print(f"Warning: Failed to save token - {e}")
 
-        self.ws = None
-        self.session = self.__generate_session()
-        self.chart_session = self.__generate_chart_session()
-
-    def __init__(
-        self,
-        token: str = None,
-    ) -> None:
-        """Create TvDatafeed object
-
-        Args:
-            username (str, optional): tradingview username. Defaults to None.
-            password (str, optional): tradingview password. Defaults to None.
-        """
-
-        self.ws_debug = False
-
-        self.token = token
-
-        if self.token is None:
-            self.token = "unauthorized_user_token"
-            logger.warning(
-                "you are using nologin method, data you access may be limited"
-            )
-
-        self.ws = None
-        self.session = self.__generate_session()
-        self.chart_session = self.__generate_chart_session()
+    def _login_and_get_token(self, username, password):
+        # Placeholder for real login logic
+        # Replace this with real login request to get a token from TradingView
+        login_response = self.__auth(username, password)
+        token = login_response.get("token")
+        if not token:
+            raise ValueError("Login failed, could not retrieve token")
+        return token
 
     def __auth(self, username, password):
 
