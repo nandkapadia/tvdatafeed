@@ -45,7 +45,7 @@ class TvDatafeed:
         self._lock = threading.Lock()
 
         token = self._load_token()
-        print(token)
+
         if token:
             self.token = token
         else:
