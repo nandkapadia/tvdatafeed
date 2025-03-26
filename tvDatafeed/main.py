@@ -41,7 +41,7 @@ class TvDatafeed:
     def __init__(self, username=None, password=None, token_cache_file="~/.tv_token.json"):
         self.ws_debug = False
 
-        self._token_cache_file = os.path.expanduser(token_cache_file)
+        self.token_cache_file = os.path.expanduser(token_cache_file)
         self._lock = threading.Lock()
 
         token = self._load_token()
@@ -50,8 +50,8 @@ class TvDatafeed:
             self.token = token
         else:
             if username and password:
-                self._token = self._login_and_get_token(username, password)
-                self._save_token(self._token)
+                self.token = self._login_and_get_token(username, password)
+                self._save_token(self.token)
             else:
                 raise ValueError("Must provide either token or username/password")
 
@@ -60,9 +60,9 @@ class TvDatafeed:
         self.chart_session = self.__generate_chart_session()
 
     def _load_token(self):
-        if os.path.exists(self._token_cache_file):
+        if os.path.exists(self.token_cache_file):
             try:
-                with open(self._token_cache_file, "r") as f:
+                with open(self.token_cache_file, "r") as f:
                     return json.load(f).get("token")
             except Exception:
                 return None
@@ -70,7 +70,7 @@ class TvDatafeed:
 
     def _save_token(self, token):
         try:
-            with open(self._token_cache_file, "w") as f:
+            with open(self.token_cache_file, "w") as f:
                 json.dump({"token": token}, f)
         except Exception as e:
             print(f"Warning: Failed to save token - {e}")
