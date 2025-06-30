@@ -43,8 +43,6 @@ class TvDatafeed:
         self,
         username=None,
         password=None,
-        sessionid=None,
-        sessionid_sign=None,
         token_cache_file="~/.tv_token.json",
     ):
         self.ws_debug = False
@@ -58,7 +56,7 @@ class TvDatafeed:
             self.token = token
         else:
             if username and password:
-                self.token = self._login_and_get_token(username, password, sessionid, sessionid_sign)
+                self.token = self._login_and_get_token(username, password)
                 self._save_token(self.token)
             else:
                 raise ValueError("Must provide either token or username/password")
@@ -83,32 +81,15 @@ class TvDatafeed:
         except Exception as e:
             print(f"Warning: Failed to save token - {e}")
 
-    def _login_and_get_token(self, username, password, sessionid, sessionid_sign):
+    def _login_and_get_token(self, username, password):
         # Placeholder for real login logic
         # Replace this with real login request to get a token from TradingView
-        token = self.__auth(username, password, sessionid, sessionid_sign)
+        token = self.__auth(username, password)
         if not token:
             raise ValueError("Login failed, could not retrieve token")
         return token
 
-    def __auth(self, username=None, password=None, sessionid=None, sessionid_sign=None):
-
-        # -- 1.  Cookie route -------------------------------------------------
-        if sessionid and sessionid_sign:
-            try:
-                r = requests.get(
-                    self.__user_url,
-                    cookies={
-                        "sessionid": sessionid,
-                        "sessionid_sign": sessionid_sign,
-                    },
-                    headers={"Referer": "https://www.tradingview.com"},
-                    timeout=5,
-                )
-                r.raise_for_status()
-                return r.json()["user"]["auth_token"]
-            except Exception as e:
-                logger.error("cookie-auth failed: %s", e)
+    def __auth(self, username=None, password=None):
 
         # -- 2.  Username / password fallback --------------------------------
         if username and password:
