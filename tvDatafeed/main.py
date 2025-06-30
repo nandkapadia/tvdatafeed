@@ -32,13 +32,21 @@ class Interval(enum.Enum):
 
 
 class TvDatafeed:
-    __sign_in_url = 'https://www.tradingview.com/accounts/signin/'
-    __search_url = 'https://symbol-search.tradingview.com/symbol_search/?text={}&hl=1&exchange={}&lang=en&type=&domain=production'
+    __user_url = "https://www.tradingview.com/accounts/current/"
+    __sign_in_url = "https://www.tradingview.com/accounts/signin/"
+    __search_url = "https://symbol-search.tradingview.com/symbol_search/?text={}&hl=1&exchange={}&lang=en&type=&domain=production"
     __ws_headers = json.dumps({"Origin": "https://data.tradingview.com"})
-    __signin_headers = {'Referer': 'https://www.tradingview.com'}
+    __signin_headers = {"Referer": "https://www.tradingview.com"}
     __ws_timeout = 5
 
-    def __init__(self, username=None, password=None, token_cache_file="~/.tv_token.json"):
+    def __init__(
+        self,
+        username=None,
+        password=None,
+        sessionid=None,
+        sessionid_sign=None,
+        token_cache_file="~/.tv_token.json",
+    ):
         self.ws_debug = False
 
         self.token_cache_file = os.path.expanduser(token_cache_file)
@@ -50,7 +58,7 @@ class TvDatafeed:
             self.token = token
         else:
             if username and password:
-                self.token = self._login_and_get_token(username, password)
+                self.token = self._login_and_get_token(username, password, sessionid, sessionid_sign)
                 self._save_token(self.token)
             else:
                 raise ValueError("Must provide either token or username/password")
@@ -75,37 +83,55 @@ class TvDatafeed:
         except Exception as e:
             print(f"Warning: Failed to save token - {e}")
 
-    def _login_and_get_token(self, username, password):
+    def _login_and_get_token(self, username, password, sessionid, sessionid_sign):
         # Placeholder for real login logic
         # Replace this with real login request to get a token from TradingView
-        token = self.__auth(username, password)
+        token = self.__auth(username, password, sessionid, sessionid_sign)
         if not token:
             raise ValueError("Login failed, could not retrieve token")
         return token
 
-    def __auth(self, username, password):
+    def __auth(self, username=None, password=None, sessionid=None, sessionid_sign=None):
 
-        if (username is None or password is None):
-            token = None
-
-        else:
-            data = {"username": username,
-                    "password": password,
-                    "remember": "on"}
+        # -- 1.  Cookie route -------------------------------------------------
+        if sessionid and sessionid_sign:
             try:
-                response = requests.post(
-                    url=self.__sign_in_url, data=data, headers=self.__signin_headers)
-                token = response.json()['user']['auth_token']
+                r = requests.get(
+                    self.__user_url,
+                    cookies={
+                        "sessionid": sessionid,
+                        "sessionid_sign": sessionid_sign,
+                    },
+                    headers={"Referer": "https://www.tradingview.com"},
+                    timeout=5,
+                )
+                r.raise_for_status()
+                return r.json()["user"]["auth_token"]
             except Exception as e:
-                logger.error('error while signin')
-                token = None
+                logger.error("cookie-auth failed: %s", e)
 
-        return token
+        # -- 2.  Username / password fallback --------------------------------
+        if username and password:
+            try:
+                r = requests.post(
+                    self.__sign_in_url,
+                    data={"username": username, "password": password, "remember": "on"},
+                    headers={"Referer": "https://www.tradingview.com"},
+                    timeout=5,
+                )
+                return r.json()["user"]["auth_token"]
+            except Exception as e:
+                logger.error("password-auth failed: %s", e)
+
+        # -- 3.  Anonymous ----------------------------------------------------
+        return None
 
     def __create_connection(self):
         logging.debug("creating websocket connection")
         self.ws = create_connection(
-            "wss://data.tradingview.com/socket.io/websocket", headers=self.__ws_headers, timeout=self.__ws_timeout
+            "wss://data.tradingview.com/socket.io/websocket",
+            headers=self.__ws_headers,
+            timeout=self.__ws_timeout,
         )
 
     @staticmethod
@@ -122,16 +148,14 @@ class TvDatafeed:
     def __generate_session():
         stringLength = 12
         letters = string.ascii_lowercase
-        random_string = "".join(random.choice(letters)
-                                for i in range(stringLength))
+        random_string = "".join(random.choice(letters) for i in range(stringLength))
         return "qs_" + random_string
 
     @staticmethod
     def __generate_chart_session():
         stringLength = 12
         letters = string.ascii_lowercase
-        random_string = "".join(random.choice(letters)
-                                for i in range(stringLength))
+        random_string = "".join(random.choice(letters) for i in range(stringLength))
         return "cs_" + random_string
 
     @staticmethod
@@ -177,13 +201,12 @@ class TvDatafeed:
                     except ValueError:
                         volume_data = False
                         row.append(0.0)
-                        logger.debug('no volume data')
+                        logger.debug("no volume data")
 
                 data.append(row)
 
             data = pd.DataFrame(
-                data, columns=["datetime", "open",
-                               "high", "low", "close", "volume"]
+                data, columns=["datetime", "open", "high", "low", "close", "volume"]
             ).set_index("datetime")
             data.insert(0, "symbol", value=symbol)
             return data
@@ -270,8 +293,7 @@ class TvDatafeed:
         )
 
         self.__send_message(
-            "quote_add_symbols", [self.session, symbol,
-                                  {"flags": ["force_permission"]}]
+            "quote_add_symbols", [self.session, symbol, {"flags": ["force_permission"]}]
         )
         self.__send_message("quote_fast_symbols", [self.session, symbol])
 
@@ -291,8 +313,7 @@ class TvDatafeed:
             "create_series",
             [self.chart_session, "s1", "s1", "symbol_1", interval, n_bars],
         )
-        self.__send_message("switch_timezone", [
-                            self.chart_session, "exchange"])
+        self.__send_message("switch_timezone", [self.chart_session, "exchange"])
 
         raw_data = ""
 
@@ -310,15 +331,16 @@ class TvDatafeed:
 
         return self.__create_df(raw_data, symbol)
 
-    def search_symbol(self, text: str, exchange: str = ''):
+    def search_symbol(self, text: str, exchange: str = ""):
         url = self.__search_url.format(text, exchange)
 
         symbols_list = []
         try:
             resp = requests.get(url)
 
-            symbols_list = json.loads(resp.text.replace(
-                '</em>', '').replace('<em>', ''))
+            symbols_list = json.loads(
+                resp.text.replace("</em>", "").replace("<em>", "")
+            )
         except Exception as e:
             logger.error(e)
 
@@ -326,6 +348,7 @@ class TvDatafeed:
 
     def get_token(self):
         return self.token
+
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
