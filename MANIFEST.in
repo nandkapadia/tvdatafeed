@@ -1,0 +1,34 @@
+# Include important documentation files
+include README.md
+include LICENSE
+include CHANGELOG.md
+include QUICKSTART.md
+include TOKEN_SETUP_GUIDE.md
+include TESTING.md
+include token_helper.py
+include Makefile
+
+# Include configuration files
+include pytest.ini
+include requirements.txt
+include requirements-dev.txt
+
+# Include package data
+recursive-include tvDatafeed *.py
+
+# Include tests (for source distributions)
+recursive-include tests *.py
+exclude tests/__pycache__
+
+# Exclude unnecessary files
+exclude CLAUDE.md
+exclude tv.ipynb
+exclude .gitignore
+exclude setup.py
+exclude PYPI_RELEASE_CHECKLIST.md
+recursive-exclude * __pycache__
+recursive-exclude * *.py[co]
+recursive-exclude * .DS_Store
+recursive-exclude * .pytest_cache
+recursive-exclude * htmlcov
+recursive-exclude * .coverage

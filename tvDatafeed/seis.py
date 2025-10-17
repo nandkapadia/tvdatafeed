@@ -1,256 +1,244 @@
-import tvDatafeed
+"""Symbol-Exchange-Interval Set (Seis) for tracking live data streams."""
 
-class Seis(object):
+from __future__ import annotations
+
+import datetime
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+    import pandas as pd
+    from .datafeed import TvDatafeedLive
+    from .consumer import Consumer
+    from .main import Interval
+
+
+@dataclass
+class Seis:
+    """Symbol, exchange, and interval data set for live streaming.
+
+    Holds a unique combination of symbol, exchange, and interval values,
+    along with associated consumers for this data stream.
+
+    Args:
+        symbol: Ticker symbol string
+        exchange: Exchange where symbol is listed
+        interval: Chart time interval
+
+    Example:
+        >>> seis = Seis('ETHUSDT', 'BINANCE', Interval.in_1_hour)
+        >>> seis.new_consumer(my_callback)
     """
-    Symbol, exchange and interval data set
-    
-    Holds a unique set of symbol, exchange and interval 
-    values in addition to keeping a set of consumers 
-    instances for this set.
-    
-    Parameters
-    ----------
-    symbol : str 
-        ticker string for symbol
-    exchange : str
-        exchange where symbol is listed
-    interval : tvDatafeed.Interval
-        chart interval
-    
-    Methods
-    -------
-    new_consumer(callback)
-        Create a new consumer and add to Seis
-    del_consumer(consumer)
-        Remove consumer from Seis
-    get_hist(n_bars)
-        Get historic data for this Seis
-    del_seis()
-        Remove Seis from tvDatafeedLive where it is
-        listed
-    get_consumers()
-        Return a list of consumers for this Seis
-    """
 
-    def __init__(self, symbol, exchange, interval):
-        self._symbol=symbol
-        self._exchange=exchange
-        self._interval=interval
-        
-        self._tvdatafeed=None 
-        self._consumers=[]
-        self._updated=None # datetime of the data bar that was last retrieved from TradingView
-    
-    def __eq__(self, other):
-        # Compare two seis instances to decide if they are equal
-        #
-        # Instances are equal if symbol, exchange and interval attributes
-        # are of same value.
-        if isinstance(other, self.__class__): # make sure that they are the same class 
-            if self.symbol == other.symbol and self.exchange == other.exchange and self.interval == other.interval: # these attributes need to be identical
-                return True
-        # TODO : add an option to compare Seis with list and tuple containing 3 string elements (symb, exch, inter)
-        
-        return False
-    
-    def __repr__(self):
-        return f'Seis("{self._symbol}","{self._exchange}",{self._interval})'
-    
-    def __str__(self):
-        return "symbol='"+self._symbol+"',exchange='"+self._exchange+"',interval='"+self._interval.name+"'"
+    symbol: str
+    exchange: str
+    interval: Interval
 
-    @property # read-only attribute
-    def symbol(self):
-        return self._symbol
-    
-    @property # read-only attribute
-    def exchange(self):
-        return self._exchange
-    
-    @property # read-only attribute
-    def interval(self):
-        return self._interval
-    
+    # Private fields not shown in repr
+    _tvdatafeed: TvDatafeedLive | None = field(default=None, repr=False, init=False)
+    _consumers: list[Consumer] = field(default_factory=list, repr=False, init=False)
+    _updated: datetime.datetime | None = field(default=None, repr=False, init=False)
+
+    def __eq__(self, other: object) -> bool:
+        """Compare two Seis instances for equality.
+
+        Instances are equal if symbol, exchange, and interval match.
+
+        Args:
+            other: Object to compare with
+
+        Returns:
+            True if equal, False otherwise
+        """
+        if not isinstance(other, Seis):
+            return NotImplemented
+
+        return (
+            self.symbol == other.symbol and
+            self.exchange == other.exchange and
+            self.interval == other.interval
+        )
+
+    def __str__(self) -> str:
+        """Return string representation."""
+        return f"symbol='{self.symbol}', exchange='{self.exchange}', interval='{self.interval.name}'"
+
     @property
-    def tvdatafeed(self):
+    def tvdatafeed(self) -> TvDatafeedLive | None:
+        """Get associated TvDatafeedLive instance."""
         return self._tvdatafeed
-    
+
     @tvdatafeed.setter
-    def tvdatafeed(self, value):
-        if (self._tvdatafeed) is not None:
-            raise AttributeError("Cannot overwrite attribute, need to delete it first")
-        elif not isinstance(value, tvDatafeed.TvDatafeedLive):
-            raise ValueError("Argument must be instance of TvDatafeed") 
-        else:
-            self._tvdatafeed=value
-    
+    def tvdatafeed(self, value: TvDatafeedLive) -> None:
+        """Set TvDatafeedLive instance.
+
+        Args:
+            value: TvDatafeedLive instance
+
+        Raises:
+            AttributeError: If already set (cannot overwrite)
+            TypeError: If value is not TvDatafeedLive instance
+        """
+        # Import here to avoid circular dependency
+        from .datafeed import TvDatafeedLive as TvDatafeedLiveClass
+
+        if self._tvdatafeed is not None:
+            raise AttributeError("Cannot overwrite tvdatafeed - delete it first")
+
+        if not isinstance(value, TvDatafeedLiveClass):
+            raise TypeError("Value must be TvDatafeedLive instance")
+
+        self._tvdatafeed = value
+
     @tvdatafeed.deleter
-    def tvdatafeed(self):
-        self._tvdatafeed=None
-    
-    def new_consumer(self, callback, timeout=-1):
-        '''
-        Create a new consumer and add to Seis
-        
-        Parameters
-        ----------
-        callback : func
-            function to call when new data produced
-        timeout : int, optional
-            maximum time to wait in seconds for return, default
-            is -1 (blocking)
-        
-        Returns
-        -------
-        tvdatafeed.Consumer
-            If timeout was specified and expired then False will be 
-            returned instead of Consumer
-        
-        Raises
-        ------
-        NameError
-            if no TvDatafeedLive reference is added for this Seis
-        '''
+    def tvdatafeed(self) -> None:
+        """Delete TvDatafeedLive reference."""
+        self._tvdatafeed = None
+
+    def new_consumer(
+        self,
+        callback: Callable[[Seis, pd.DataFrame], None],
+        timeout: int = -1
+    ) -> Consumer | bool:
+        """Create new consumer and add to this Seis.
+
+        Args:
+            callback: Function(seis, data) to call with new data
+            timeout: Maximum wait time in seconds (-1 for blocking)
+
+        Returns:
+            Consumer instance, or False if timeout
+
+        Raises:
+            RuntimeError: If no TvDatafeedLive reference set
+
+        Example:
+            >>> def my_callback(seis, data):
+            ...     print(f"New data: {data}")
+            >>> consumer = seis.new_consumer(my_callback)
+        """
         if self._tvdatafeed is None:
-            raise NameError("TvDatafeed not provided")
-        
-        return self._tvdatafeed.new_consumer(self, callback, timeout) # methods go through tvdatafeed to acquire lock and make it thread safe
-    
-    def del_consumer(self, consumer, timeout=-1):
-        '''
-        Remove consumer from Seis
-        
-        Parameters
-        ----------
-        consumer : tvdatafeed.Consumer
-            consumer instance
-        timeout : int, optional
-            maximum time to wait in seconds for return, default
-            is -1 (blocking)
-        
-        Returns
-        -------
-        boolean
-            True if successful, False if timed out.
-        
-        Raises
-        ------
-        NameError
-            if no TvDatafeedLive reference is added for this Seis
-        '''
+            raise RuntimeError("No TvDatafeedLive instance associated with this Seis")
+
+        return self._tvdatafeed.new_consumer(self, callback, timeout)
+
+    def del_consumer(
+        self,
+        consumer: Consumer,
+        timeout: int = -1
+    ) -> bool:
+        """Remove consumer from this Seis.
+
+        Args:
+            consumer: Consumer instance to remove
+            timeout: Maximum wait time in seconds (-1 for blocking)
+
+        Returns:
+            True if successful, False if timeout
+
+        Raises:
+            RuntimeError: If no TvDatafeedLive reference set
+        """
         if self._tvdatafeed is None:
-            raise NameError("TvDatafeed not provided")
-        
-        return self._tvdatafeed.del_consumer(consumer, timeout) 
-    
-    def add_consumer(self, consumer):
-        # Add consumer into Seis, not for direct use
-        #
-        # This methods is not for direct calling by the
-        # user, but for TvDatafeedLive instance to 
-        # perform operations in the background.
-        #
-        # Parameters
-        # ----------
-        # consumer : tvdatafeed.Consumer
-        #     consumer instance
+            raise RuntimeError("No TvDatafeedLive instance associated with this Seis")
+
+        return self._tvdatafeed.del_consumer(consumer, timeout)
+
+    def add_consumer(self, consumer: Consumer) -> None:
+        """Add consumer to internal list.
+
+        Internal method used by TvDatafeedLive. Not for direct use.
+
+        Args:
+            consumer: Consumer instance to add
+        """
         self._consumers.append(consumer)
-        
-    def pop_consumer(self, consumer):
-        # Remove consumer from Seis, not for direct use
-        #
-        # This methods is not for direct calling by the
-        # user, but for TvDatafeedLive instance to 
-        # perform operations in the background.
-        #
-        # Parameters
-        # ----------
-        # consumer : tvdatafeed.Consumer
-        #    consumer instance
+
+    def pop_consumer(self, consumer: Consumer) -> None:
+        """Remove consumer from internal list.
+
+        Internal method used by TvDatafeedLive. Not for direct use.
+
+        Args:
+            consumer: Consumer instance to remove
+
+        Raises:
+            ValueError: If consumer not in list
+        """
         if consumer not in self._consumers:
-            raise NameError("Consumer does not exist in the list")
+            raise ValueError("Consumer not registered with this Seis")
         self._consumers.remove(consumer)
-    
-    def is_new_data(self, data):
-        ''''
-        Check if datas datetime is newer than previous datas datetime
-        
-        Parameters
-        ----------
-        data : pandas.DataFrame
-            contains retrieved data and datetime
-        
-        Returns
-        -------
-        boolean
-            True is new, False otherwise
-        '''
-        if self._updated != data.index.to_pydatetime()[0]: 
-            self._updated=data.index.to_pydatetime()[0] # update the datetime of the last sample
+
+    def is_new_data(self, data: pd.DataFrame) -> bool:
+        """Check if data contains a new bar (different datetime).
+
+        Args:
+            data: DataFrame with datetime index
+
+        Returns:
+            True if new data, False if duplicate
+        """
+        current_dt = data.index.to_pydatetime()[0]
+
+        if self._updated != current_dt:
+            self._updated = current_dt
             return True
-        
+
         return False
-   
-    def get_hist(self, n_bars=10, timeout=-1):
-        '''
-        Get historic data for this Seis
-        
-        This method is not implemented!
-        
-        Parameters
-        ----------
-        n_bars : int, optional
-            number of historic bars to retrieve, defaults to 10
-        timeout : int, optional
-            maximum time to wait in seconds for return, default
-            is -1 (blocking)
-        
-        Returns
-        -------
-        pandas.DataFrame
-            DataFrame containing data bars or if timeout was specified
-            and timed out then False will be returned
-            
-        Raises
-        ------
-        NameError
-            if no TvDatafeedLive reference is added for this Seis
-        '''
+
+    def get_hist(
+        self,
+        n_bars: int = 10,
+        timeout: int = -1
+    ) -> pd.DataFrame | bool:
+        """Get historical data for this Seis.
+
+        Args:
+            n_bars: Number of bars to retrieve (max 5000)
+            timeout: Maximum wait time in seconds (-1 for blocking)
+
+        Returns:
+            DataFrame with OHLCV data, or False if timeout
+
+        Raises:
+            RuntimeError: If no TvDatafeedLive reference set
+
+        Example:
+            >>> data = seis.get_hist(n_bars=100)
+        """
         if self._tvdatafeed is None:
-            raise NameError("TvDatafeed not provided")
-        
-        return self._tvdatafeed.get_hist(symbol=self._symbol, exchange=self._exchange, interval=self._interval, n_bars=n_bars, timeout=timeout) 
-    
-    def del_seis(self, timeout=-1):
-        '''
-        Remove Seis from tvDatafeedLive where it is
-        listed
-        
-        Parameters
-        ----------
-        timeout : int, optional
-            maximum time to wait in seconds for return, default
-            is -1 (blocking)
-            
-        Returns
-        -------
-        boolean
-            True if successful, False if timed out.
-        '''
+            raise RuntimeError("No TvDatafeedLive instance associated with this Seis")
+
+        return self._tvdatafeed.get_hist(
+            symbol=self.symbol,
+            exchange=self.exchange,
+            interval=self.interval,
+            n_bars=n_bars,
+            timeout=timeout
+        )
+
+    def del_seis(self, timeout: int = -1) -> bool:
+        """Remove this Seis from TvDatafeedLive.
+
+        Args:
+            timeout: Maximum wait time in seconds (-1 for blocking)
+
+        Returns:
+            True if successful, False if timeout
+
+        Raises:
+            RuntimeError: If no TvDatafeedLive reference set
+        """
         if self._tvdatafeed is None:
-            raise NameError("TvDatafeed not provided")
-        
+            raise RuntimeError("No TvDatafeedLive instance associated with this Seis")
+
         return self._tvdatafeed.del_seis(self, timeout)
-    
-    def get_consumers(self):
-        '''
-        Return a list of consumers for this Seis
-        
-        Returns
-        -------
-        list
-            contains all consumer instances registered 
-            for this Seis
-        '''
+
+    def get_consumers(self) -> list[Consumer]:
+        """Get list of all consumers for this Seis.
+
+        Returns:
+            List of Consumer instances
+        """
         return self._consumers
-    

@@ -1,16 +1,47 @@
-.project
-.pydevproject
-main_test.py
-.vscode
-dist
-build
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
 *.egg-info/
+.installed.cfg
 *.egg
 MANIFEST
 
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.pytest_cache/
+
+# Jupyter Notebook
 .ipynb_checkpoints
-*.pyc
-__pycache__/
+*.ipynb
+
+# Environments
 .env
 .venv
 env/
@@ -18,5 +49,26 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+
+# IDE
+.vscode/
+.idea/
+.project
+.pydevproject
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Project specific
+main_test.py
+test_*.py
 tvDatafeed/symbols.pkl
 tvDatafeed/beta.py
+.tv_token.json
+tv.ipynb

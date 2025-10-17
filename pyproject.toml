@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tvdatafeed-enhanced"
+version = "2.2.0"
+description = "TradingView historical and live data downloader with advanced features"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [
+    {name = "StreamAlpha, rongardF"}
+]
+keywords = ["tradingview", "trading", "data", "market-data", "finance", "stocks", "crypto", "forex", "live-data", "real-time"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Financial and Insurance Industry",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business :: Financial",
+    "Topic :: Office/Business :: Financial :: Investment",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Operating System :: OS Independent",
+]
+
+dependencies = [
+    "pandas>=2.2.0",
+    "websockets>=14.1",
+    "requests>=2.32.0",
+    "python-dateutil>=2.8.0",
+]
+
+[project.optional-dependencies]
+captcha = ["browser-cookie3>=0.19.1"]
+
+[project.urls]
+Homepage = "https://github.com/rongardF/tvdatafeed/"
+Documentation = "https://github.com/rongardF/tvdatafeed/blob/main/README.md"
+Source = "https://github.com/rongardF/tvdatafeed/"
+Tracker = "https://github.com/rongardF/tvdatafeed/issues"
+
+[tool.setuptools]
+packages = ["tvDatafeed"]
+
+[tool.setuptools.package-data]
+tvDatafeed = ["py.typed"]

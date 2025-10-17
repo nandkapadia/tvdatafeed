@@ -1,30 +1,48 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
-with open("README.md", "r") as fh:
+with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
-    name="tvdatafeed",
-    version="2.1.1",
-    packages=["tvDatafeed"],
+    name="tvdatafeed-enhanced",
+    version="2.2.0",
+    packages=find_packages(exclude=["tests", "*.tests", "*.tests.*"]),
     url="https://github.com/rongardF/tvdatafeed/",
     project_urls={
-        "YouTube": "https://youtube.com/StreamAlpha?sub_confirmation=1",
-        "Funding": "https://www.buymeacoffee.com/StreamAlpha",
-        "Telegram Channel": "https://t.me/streamAlpha",
-        "Source": "https://github.com/StreamAlpha/tvdatafeed/",
-        "Tracker": "https://github.com/StreamAlpha/tvdatafeed/issues",
+        "Documentation": "https://github.com/rongardF/tvdatafeed/blob/main/README.md",
+        "Source": "https://github.com/rongardF/tvdatafeed/",
+        "Tracker": "https://github.com/rongardF/tvdatafeed/issues",
     },
-    license="MIT License",
-    author="@StreamAlpha",
+    license="MIT",
+    author="StreamAlpha, rongardF",
     author_email="",
-    description="TradingView historical data downloader",
-    long_description_content_type="text/markdown",
+    description="TradingView historical and live data downloader with advanced features",
     long_description=long_description,
+    long_description_content_type="text/markdown",
+    keywords=["tradingview", "trading", "data", "market-data", "finance", "stocks", "crypto", "forex"],
+    python_requires=">=3.10",
     install_requires=[
-        "setuptools",
-        "pandas",
-        "websocket-client",
-        "requests"
+        "pandas>=2.2.0",
+        "websockets>=14.1",
+        "requests>=2.32.0",
+        "python-dateutil>=2.8.0",
     ],
+    extras_require={
+        "captcha": ["browser-cookie3>=0.19.1"],
+    },
+    classifiers=[
+        "Development Status :: 4 - Beta",
+        "Intended Audience :: Developers",
+        "Intended Audience :: Financial and Insurance Industry",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
+        "Topic :: Office/Business :: Financial",
+        "Topic :: Office/Business :: Financial :: Investment",
+        "Topic :: Software Development :: Libraries :: Python Modules",
+        "Operating System :: OS Independent",
+    ],
+    include_package_data=True,
 )

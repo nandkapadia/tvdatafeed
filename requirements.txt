@@ -1,4 +1,13 @@
-setuptools~=49.2.0
-pandas~=1.0.5
-websocket-client~=0.57.0
-requests
+# Build dependencies
+setuptools>=70.0.0
+wheel>=0.41.0
+
+# Core dependencies
+pandas>=2.2.0
+websockets>=14.1
+requests>=2.32.0
+python-dateutil>=2.8.0
+
+# Optional: For automatic browser cookie extraction when CAPTCHA is required
+# Install with: pip install tvdatafeed[captcha]
+# browser-cookie3>=0.19.1

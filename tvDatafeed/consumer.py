@@ -1,99 +1,137 @@
-import threading, queue, traceback
+"""Consumer thread for processing live data with callback functions."""
+
+from __future__ import annotations
+
+import logging
+import queue
+import threading
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+    import pandas as pd
+    from .seis import Seis
+
+logger = logging.getLogger(__name__)
+
 
 class Consumer(threading.Thread):
-    '''
-    Seis data consumer and processor
-    
-    This object contains reference to Seis and callback function
-    which will be called when new data bar becomes available for
-    that Seis. Data reception and calling callback function is 
-    done in a separate thread which the user must start by calling
-    start() method.
-    
-    Parameters
-    ----------
-    seis : Seis
-        Consumer receives data bar from this Seis
-    callback : func
-        reference to a function to be called when new data available,
-        function protoype must be func_name(seis, data)
-    
-    Methods
-    -------
-    put(data)
-        Put new data into buffer to be processed
-    del_consumer()
-        Shutdown the callback thread and remove from Seis
-    start()
-        start data processing and callback thread
-    stop()
-        Stop the data processing and callback thread
-    '''
-    def __init__(self, seis, callback):
-        super().__init__()
+    """Threaded consumer for processing Seis data via callback.
 
-        self._buffer=queue.Queue()               
-        self.seis=seis
-        self.callback=callback
-        self.name=self.callback.__name__+"_"+self.seis.symbol+"_"+seis.exchange+"_"+seis.interval.value
-    
-    def __repr__(self):
-        return f'Consumer({repr(self.seis)},{self.callback.__name__})'
-    
-    def __str__(self):
-        return f'{repr(self.seis)},callback={self.callback.__name__}'
-    
-    def run(self):
-        # callback thread tasks
+    Runs in a separate thread to process incoming data bars from a Seis
+    by calling a user-provided callback function. Uses a queue for
+    thread-safe data passing.
+
+    Args:
+        seis: Seis instance this consumer processes data from
+        callback: Function(seis, data) to call with new data bars
+
+    Example:
+        >>> def my_callback(seis, data):
+        ...     print(f"Received bar: {data}")
+        >>> consumer = Consumer(seis, my_callback)
+        >>> consumer.start()
+        >>> consumer.put(new_data)
+    """
+
+    def __init__(
+        self,
+        seis: Seis,
+        callback: Callable[[Seis, pd.DataFrame], None]
+    ) -> None:
+        """Initialize consumer thread.
+
+        Args:
+            seis: Seis to consume data from
+            callback: Callback function for new data
+        """
+        super().__init__(daemon=True)
+
+        self._buffer: queue.Queue[pd.DataFrame | None] = queue.Queue()
+        self.seis = seis
+        self.callback = callback
+
+        # Create descriptive thread name
+        self.name = (
+            f"{self.callback.__name__}_"
+            f"{self.seis.symbol}_"
+            f"{self.seis.exchange}_"
+            f"{self.seis.interval.value}"
+        )
+
+    def __repr__(self) -> str:
+        """Return detailed representation."""
+        return f"Consumer({self.seis!r}, {self.callback.__name__})"
+
+    def __str__(self) -> str:
+        """Return string representation."""
+        return f"{self.seis}, callback={self.callback.__name__}"
+
+    def run(self) -> None:
+        """Main thread loop - processes data from queue.
+
+        Continuously pulls data from the queue and calls the callback
+        function. Exits when None is received (shutdown signal).
+        """
+        logger.debug("Consumer thread %s started", self.name)
+
         while True:
-            data=self._buffer.get()
+            data = self._buffer.get()
+
+            # None signals shutdown
             if data is None:
+                logger.debug("Consumer thread %s received shutdown signal", self.name)
                 break
 
-            try: # in case user provided function throws an exception
+            try:
                 self.callback(self.seis, data)
-            except Exception as e: # remove the consumer from Seis and close down gracefully
-                self.del_consumer()
-                self.seis=None # delete references
-                self.callback=None
-                self._buffer=None
-                raise e from None
-        
-        self.seis=None # delete references
-        self.callback=None
-        self._buffer=None
-    
-    def put(self, data):
-        '''
-        Put new data into buffer to be processed
-        
-        Parameters
-        ----------
-        data : pandas.DataFrame
-            contains single bar data retrieved from TradingView
-        '''
-        self._buffer.put(data)
-    
-    def del_consumer(self, timeout=-1):
-        '''
-        Stop the callback thread and remove from Seis
-        
-        Parameters
-        ----------
-        timeout : int, optional
-            maximum time to wait in seconds for return, default
-            is -1 (blocking)
-        
-        Returns
-        -------
-        boolean
-            True if successful, False if timed out.
-        '''
+            except Exception as e:
+                logger.error(
+                    "Callback %s raised exception for %s: %s",
+                    self.callback.__name__,
+                    self.seis,
+                    e,
+                    exc_info=True
+                )
+                # Clean up and exit on callback error
+                try:
+                    self.del_consumer()
+                except Exception:
+                    pass
+                break
+
+        # Cleanup references
+        logger.debug("Consumer thread %s exiting", self.name)
+        self.seis = None  # type: ignore
+        self.callback = None  # type: ignore
+        self._buffer = None  # type: ignore
+
+    def put(self, data: pd.DataFrame | None) -> None:
+        """Add data to processing queue.
+
+        Args:
+            data: DataFrame with bar data, or None to signal shutdown
+        """
+        if self._buffer is not None:
+            self._buffer.put(data)
+
+    def del_consumer(self, timeout: int = -1) -> bool:
+        """Stop thread and remove from Seis.
+
+        Args:
+            timeout: Maximum wait time in seconds (-1 for blocking)
+
+        Returns:
+            True if successful, False if timeout
+        """
+        if self.seis is None:
+            return True
         return self.seis.del_consumer(self, timeout)
-    
-    def stop(self):
-        '''
-        Stop the data processing and callback thread
-        '''
-        self._buffer.put(None)
-        
+
+    def stop(self) -> None:
+        """Signal thread to stop processing.
+
+        Sends None to queue which triggers thread exit.
+        """
+        if self._buffer is not None:
+            self._buffer.put(None)
