@@ -568,7 +568,7 @@ class TvDatafeedLive(TvDatafeed):
             symbol: Symbol name
             exchange: Exchange name
             interval: Time interval
-            n_bars: Number of bars to fetch (max 5000)
+            n_bars: Number of bars to fetch
             fut_contract: Futures contract number
             extended_session: Include extended hours
             timeout: Maximum wait time in seconds (-1 for blocking)

@@ -632,7 +632,7 @@ class TvDatafeed:
             symbol: Symbol name (e.g., 'NIFTY', 'AAPL')
             exchange: Exchange name (e.g., 'NSE', 'NASDAQ')
             interval: Time interval for bars
-            n_bars: Number of bars to fetch (max 5000)
+            n_bars: Number of bars to fetch
             fut_contract: Futures contract number (None for spot, 1 for front month)
             extended_session: Include extended trading hours
 
@@ -641,16 +641,11 @@ class TvDatafeed:
             Returns None on error
 
         Raises:
-            ValueError: If n_bars is not between 1 and 5000
 
         Example:
             >>> tv = TvDatafeed(username='user', password='pass')
             >>> data = tv.get_hist('AAPL', 'NASDAQ', Interval.in_1_hour, n_bars=100)
         """
-        # Validate n_bars parameter
-        if not (1 <= n_bars <= 5000):
-            raise ValueError(f"n_bars must be between 1 and 5000, got {n_bars}")
-
         symbol = self.__format_symbol(
             symbol=symbol, exchange=exchange, contract=fut_contract
         )
@@ -889,7 +884,7 @@ class TvDatafeed:
             symbols: List of symbol names
             exchange: Exchange name (applies to all symbols)
             interval: Time interval for bars
-            n_bars: Number of bars to fetch (max 5000)
+            n_bars: Number of bars to fetch
             dataFrame: Return as DataFrame (True) or list (False)
             fut_contract: Futures contract number
             extended_session: Include extended trading hours
@@ -914,10 +909,6 @@ class TvDatafeed:
             >>> # Or use the synchronous wrapper:
             >>> data = tv.get_hist_multi(symbols, 'NASDAQ', n_bars=100, max_concurrent=15)
         """
-        # Validate n_bars parameter
-        if not (1 <= n_bars <= 5000):
-            raise ValueError(f"n_bars must be between 1 and 5000, got {n_bars}")
-
         # Create semaphore for rate limiting
         semaphore = asyncio.Semaphore(max_concurrent)
         logger.info(f"Fetching {len(symbols)} symbols with max {max_concurrent} concurrent connections")
@@ -953,7 +944,7 @@ class TvDatafeed:
             symbols: Single symbol name or list of symbol names
             exchange: Exchange name (applies to all symbols)
             interval: Time interval for bars
-            n_bars: Number of bars to fetch (max 5000)
+            n_bars: Number of bars to fetch
             dataFrame: Return as DataFrame (True) or list (False)
             fut_contract: Futures contract number
             extended_session: Include extended trading hours
@@ -968,7 +959,6 @@ class TvDatafeed:
             - Multiple symbols: Dict mapping symbol names to DataFrames or lists
 
         Raises:
-            ValueError: If n_bars is not between 1 and 5000
 
         Examples:
             >>> tv = TvDatafeed()
@@ -988,10 +978,6 @@ class TvDatafeed:
             >>> data = tv.get_hist_multi(symbols, 'NASDAQ', n_bars=100, dataFrame=False)
             >>> # Returns: {'AAPL': [[ts, o, h, l, c, v], ...], 'GOOGL': [...], ...}
         """
-        # Validate n_bars parameter
-        if not (1 <= n_bars <= 5000):
-            raise ValueError(f"n_bars must be between 1 and 5000, got {n_bars}")
-
         # Single symbol: use async method (no semaphore needed)
         if isinstance(symbols, str):
             return asyncio.run(

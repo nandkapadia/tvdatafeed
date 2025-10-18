@@ -195,7 +195,7 @@ class Seis:
         """Get historical data for this Seis.
 
         Args:
-            n_bars: Number of bars to retrieve (max 5000)
+            n_bars: Number of bars to retrieve
             timeout: Maximum wait time in seconds (-1 for blocking)
 
         Returns:

@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="tvdatafeed-enhanced",
-    version="2.2.0",
+    version="2.2.1",
     packages=find_packages(exclude=["tests", "*.tests", "*.tests.*"]),
     url="https://github.com/rongardF/tvdatafeed/",
     project_urls={
@@ -20,7 +20,7 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     keywords=["tradingview", "trading", "data", "market-data", "finance", "stocks", "crypto", "forex"],
-    python_requires=">=3.10",
+    python_requires=">=3.9",
     install_requires=[
         "pandas>=2.2.0",
         "websockets>=14.1",
@@ -35,6 +35,7 @@ setup(
         "Intended Audience :: Developers",
         "Intended Audience :: Financial and Insurance Industry",
         "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
