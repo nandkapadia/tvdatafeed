@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import queue
 import threading
@@ -9,7 +10,9 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
     import pandas as pd
+
     from .seis import Seis
 
 logger = logging.getLogger(__name__)
@@ -34,11 +37,7 @@ class Consumer(threading.Thread):
         >>> consumer.put(new_data)
     """
 
-    def __init__(
-        self,
-        seis: Seis,
-        callback: Callable[[Seis, pd.DataFrame], None]
-    ) -> None:
+    def __init__(self, seis: Seis, callback: Callable[[Seis, pd.DataFrame], None]) -> None:
         """Initialize consumer thread.
 
         Args:
@@ -91,13 +90,11 @@ class Consumer(threading.Thread):
                     self.callback.__name__,
                     self.seis,
                     e,
-                    exc_info=True
+                    exc_info=True,
                 )
                 # Clean up and exit on callback error
-                try:
+                with contextlib.suppress(Exception):
                     self.del_consumer()
-                except Exception:
-                    pass
                 break
 
         # Cleanup references

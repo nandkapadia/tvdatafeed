@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
 import pandas as pd
@@ -34,15 +33,18 @@ def mock_token_cache_file(tmp_path, mock_token):
 @pytest.fixture
 def sample_ohlcv_data():
     """Sample OHLCV data for testing."""
-    return pd.DataFrame({
-        'symbol': ['NASDAQ:AAPL'] * 5,
-        'open': [150.0, 151.0, 152.0, 153.0, 154.0],
-        'high': [151.5, 152.5, 153.5, 154.5, 155.5],
-        'low': [149.5, 150.5, 151.5, 152.5, 153.5],
-        'close': [151.0, 152.0, 153.0, 154.0, 155.0],
-        'volume': [1000000, 1100000, 1200000, 1300000, 1400000]
-    }, index=pd.date_range('2025-01-01', periods=5, freq='D', tz='UTC'))
-    
+    return pd.DataFrame(
+        {
+            "symbol": ["NASDAQ:AAPL"] * 5,
+            "open": [150.0, 151.0, 152.0, 153.0, 154.0],
+            "high": [151.5, 152.5, 153.5, 154.5, 155.5],
+            "low": [149.5, 150.5, 151.5, 152.5, 153.5],
+            "close": [151.0, 152.0, 153.0, 154.0, 155.0],
+            "volume": [1000000, 1100000, 1200000, 1300000, 1400000],
+        },
+        index=pd.date_range("2025-01-01", periods=5, freq="D", tz="UTC"),
+    )
+
 
 @pytest.fixture
 def mock_websocket():
@@ -59,12 +61,7 @@ def mock_requests_response():
     """Mock requests response object."""
     response = Mock()
     response.status_code = 200
-    response.json.return_value = {
-        "user": {
-            "username": "testuser",
-            "auth_token": "test_token_123"
-        }
-    }
+    response.json.return_value = {"user": {"username": "testuser", "auth_token": "test_token_123"}}
     return response
 
 
@@ -72,18 +69,13 @@ def mock_requests_response():
 def mock_search_response():
     """Mock search API response."""
     return [
-        {
-            "symbol": "AAPL",
-            "description": "Apple Inc",
-            "type": "stock",
-            "exchange": "NASDAQ"
-        },
+        {"symbol": "AAPL", "description": "Apple Inc", "type": "stock", "exchange": "NASDAQ"},
         {
             "symbol": "MSFT",
             "description": "Microsoft Corporation",
             "type": "stock",
-            "exchange": "NASDAQ"
-        }
+            "exchange": "NASDAQ",
+        },
     ]
 
 
@@ -99,21 +91,33 @@ def cleanup_token_files(tmp_path, monkeypatch):
 @pytest.fixture
 def mock_create_connection(mock_websocket):
     """Mock websocket create_connection."""
-    with patch('tvDatafeed.main.create_connection', return_value=mock_websocket) as mock:
+    with patch("tvDatafeed.main.create_connection", return_value=mock_websocket) as mock:
         yield mock
 
 
 @pytest.fixture
-def mock_requests_post(mock_requests_response):
-    """Mock requests.post."""
-    with patch('tvDatafeed.main.requests.post', return_value=mock_requests_response) as mock:
+def mock_requests_session(mock_requests_response):
+    """Mock requests.Session used by __auth.
+
+    __auth logs in through a requests.Session (to capture the durable
+    session cookies), so tests patch Session rather than requests.post.
+    """
+    session = MagicMock()
+    session.post.return_value = mock_requests_response
+    session.get.return_value = mock_requests_response
+    # Session cookie jar: only the durable cookies are present.
+    session.cookies.get.side_effect = lambda name: {
+        "sessionid": "sess-123",
+        "sessionid_sign": "sign-456",
+    }.get(name)
+    with patch("tvDatafeed.main.requests.Session", return_value=session) as mock:
         yield mock
 
 
 @pytest.fixture
 def mock_requests_get():
     """Mock requests.get."""
-    with patch('tvDatafeed.main.requests.get') as mock:
+    with patch("tvDatafeed.main.requests.get") as mock:
         response = Mock()
         response.status_code = 200
         response.json.return_value = {"status": "ok"}

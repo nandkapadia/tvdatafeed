@@ -4,6 +4,7 @@ wheel>=0.41.0
 
 # Core dependencies
 pandas>=2.2.0
+websocket-client>=1.7.0
 websockets>=14.1
 requests>=2.32.0
 python-dateutil>=2.8.0

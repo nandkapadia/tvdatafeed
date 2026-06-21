@@ -8,9 +8,11 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
     import pandas as pd
-    from .datafeed import TvDatafeedLive
+
     from .consumer import Consumer
+    from .datafeed import TvDatafeedLive
     from .main import Interval
 
 
@@ -55,14 +57,25 @@ class Seis:
             return NotImplemented
 
         return (
-            self.symbol == other.symbol and
-            self.exchange == other.exchange and
-            self.interval == other.interval
+            self.symbol == other.symbol
+            and self.exchange == other.exchange
+            and self.interval == other.interval
         )
+
+    def __hash__(self) -> int:
+        """Hash on the identity fields so Seis can be used in sets/dicts.
+
+        A ``@dataclass`` with a custom ``__eq__`` otherwise sets
+        ``__hash__ = None`` (unhashable); this keeps hash consistent with
+        ``__eq__``.
+        """
+        return hash((self.symbol, self.exchange, self.interval))
 
     def __str__(self) -> str:
         """Return string representation."""
-        return f"symbol='{self.symbol}', exchange='{self.exchange}', interval='{self.interval.name}'"
+        return (
+            f"symbol='{self.symbol}', exchange='{self.exchange}', interval='{self.interval.name}'"
+        )
 
     @property
     def tvdatafeed(self) -> TvDatafeedLive | None:
@@ -97,9 +110,7 @@ class Seis:
         self._tvdatafeed = None
 
     def new_consumer(
-        self,
-        callback: Callable[[Seis, pd.DataFrame], None],
-        timeout: int = -1
+        self, callback: Callable[[Seis, pd.DataFrame], None], timeout: int = -1
     ) -> Consumer | bool:
         """Create new consumer and add to this Seis.
 
@@ -123,11 +134,7 @@ class Seis:
 
         return self._tvdatafeed.new_consumer(self, callback, timeout)
 
-    def del_consumer(
-        self,
-        consumer: Consumer,
-        timeout: int = -1
-    ) -> bool:
+    def del_consumer(self, consumer: Consumer, timeout: int = -1) -> bool:
         """Remove consumer from this Seis.
 
         Args:
@@ -187,11 +194,7 @@ class Seis:
 
         return False
 
-    def get_hist(
-        self,
-        n_bars: int = 10,
-        timeout: int = -1
-    ) -> pd.DataFrame | bool:
+    def get_hist(self, n_bars: int = 10, timeout: int = -1) -> pd.DataFrame | bool:
         """Get historical data for this Seis.
 
         Args:
@@ -215,7 +218,7 @@ class Seis:
             exchange=self.exchange,
             interval=self.interval,
             n_bars=n_bars,
-            timeout=timeout
+            timeout=timeout,
         )
 
     def del_seis(self, timeout: int = -1) -> bool:

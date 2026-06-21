@@ -21,9 +21,9 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
-Build the package:
+Build the package (PEP 517; metadata/version come from `pyproject.toml`):
 ```bash
-python setup.py sdist bdist_wheel
+python -m build
 ```
 
 ## Architecture
@@ -65,9 +65,30 @@ python setup.py sdist bdist_wheel
 - Calculates next expiry times and waits efficiently
 - Interrupt mechanism for dynamic Seis addition/removal during waits
 
-**Token Caching**
-- Authentication tokens saved to `~/.tv_token.json` to avoid repeated logins
-- Load token on init, fallback to username/password login if not found
+**Token Caching & Session Refresh**
+- The short-lived `auth_token` (a JWT) is what the WebSocket needs, but it
+  expires after a few hours. The durable credential is the `sessionid`
+  cookie (long-lived with `remember=on`), exactly like the browser session.
+- `__auth` logs in via a `requests.Session`, captures the `sessionid` /
+  `sessionid_sign` cookies, and `_save_token` persists both the token and
+  cookies to `~/.tv_token.json`.
+- On init the resolution order is: valid cached JWT → username/password
+  login (only if credentials were supplied) → a fresh JWT minted from the
+  saved session cookies → anonymous. The session refresh is **lazy**: when
+  only saved cookies are available, `__init__` records that auth is pending
+  and `_ensure_authenticated` performs the (blocking) refresh on the first
+  call that needs it, so construction never blocks the network for
+  anonymous/offline callers.
+- `_refresh_token_from_session` scrapes the `auth_token` from the homepage
+  bootstrap (`__home_url`), the way the web app does, because the older JSON
+  endpoint (`__user_url`, i.e. `/accounts/current/`) has retired (404 HTML)
+  and is only kept as a fallback. A transient scrape miss keeps the cookies
+  (retry later); cookies are dropped only on an explicit 401/403.
+- `_try_refresh_token` refreshes in-place (thread-safe) when the server
+  rejects a token mid-request; `get_hist` detects `protocol_error` /
+  `critical_error` responses and retries once after refreshing. In the async
+  path the blocking refresh runs via `asyncio.to_thread` so it never stalls
+  the event loop / other concurrent fetches.
 
 **WebSocket Protocol**
 - Custom message framing: `~m~<length>~m~<json_message>`
@@ -111,7 +132,12 @@ consumer = seis.new_consumer(callback)
 - `get_hist(n_bars=2)` returns bars with index [0] = most recent closed, [1] = currently open
 - Live feed drops the open bar (index [1]) before passing to consumers
 - `is_new_data()` compares datetime to prevent duplicate processing
-- Retry logic (RETRY_LIMIT=50) for failed TradingView requests
+- Live retrieval runs in `_retrieve_new_bar` (lock-free) with exponential
+  backoff up to RETRY_LIMIT=50. "Next bar not published yet" and request
+  failures are both transient: the Seis is skipped and retried at its next
+  interval expiry rather than tearing down the whole feed.
+- The main loop holds `self._lock` only to snapshot expired work, never
+  across network I/O, so public methods stay responsive.
 
 **Interval Expiry Calculation**
 - Intervals stored as relativedelta objects in `_timeframes` dict
@@ -121,11 +147,15 @@ consumer = seis.new_consumer(callback)
 **Consumer Callback Requirements**
 - Callback signature must be: `callback(seis, data)`
 - `seis` is the Seis instance, `data` is pandas DataFrame
-- Exceptions in callbacks cause Consumer removal and re-raise
+- Exceptions in callbacks are logged (with traceback); the offending
+  Consumer is removed and its thread exits. Other consumers are unaffected
+  and the feed keeps running (the exception is not re-raised).
 
 **Authentication**
-- Token-based auth preferred (cached to filesystem)
-- Username/password fallback via POST to `__sign_in_url`
+- Cached JWT preferred; refreshed from the persisted `sessionid` cookie
+  when expired (no re-login). See "Token Caching & Session Refresh".
+- Username/password login via POST to `__sign_in_url` only when no usable
+  session exists; can hit CAPTCHA (`_handle_captcha_login` fallback).
 - Anonymous usage possible but may have symbol limitations
 
 ## File Structure
@@ -141,6 +171,6 @@ tvDatafeed/
 
 ## Version Information
 
-Current version: 2.1.1 (per setup.py)
+Current version: 2.2.1 (per `__init__.py`)
 
 Version 2.0.0 was a major breaking change that removed Selenium dependency.

@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tvdatafeed-enhanced"
-version = "2.2.1"
+dynamic = ["version"]
 description = "TradingView historical and live data downloader with advanced features"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = "MIT"
 authors = [
     {name = "StreamAlpha, rongardF"}
@@ -18,7 +18,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "Intended Audience :: Financial and Insurance Industry",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -31,6 +30,7 @@ classifiers = [
 
 dependencies = [
     "pandas>=2.2.0",
+    "websocket-client>=1.7.0",
     "websockets>=14.1",
     "requests>=2.32.0",
     "python-dateutil>=2.8.0",
@@ -48,5 +48,45 @@ Tracker = "https://github.com/rongardF/tvdatafeed/issues"
 [tool.setuptools]
 packages = ["tvDatafeed"]
 
+[tool.setuptools.dynamic]
+# Single source of truth for the version: tvDatafeed/__init__.py
+version = {attr = "tvDatafeed.__version__"}
+
 [tool.setuptools.package-data]
 tvDatafeed = ["py.typed"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+# E/W: pycodestyle, F: pyflakes, I: isort, UP: pyupgrade,
+# B: bugbear, SIM: simplify, C4: comprehensions.
+select = ["E", "W", "F", "I", "UP", "B", "SIM", "C4"]
+# E501 (line length) is enforced by the formatter, not the linter.
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests favour readability over some lint rules.
+"tests/*" = ["B", "SIM"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
+addopts = "-v --strict-markers --tb=short"
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "slow: Slow running tests",
+    "requires_auth: Tests that require authentication",
+]
+filterwarnings = ["ignore::DeprecationWarning"]

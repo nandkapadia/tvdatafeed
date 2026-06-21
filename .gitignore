@@ -68,6 +68,8 @@ venv.bak/
 # Project specific
 main_test.py
 test_*.py
+# ...but the project's own test suite must be tracked.
+!tests/test_*.py
 tvDatafeed/symbols.pkl
 tvDatafeed/beta.py
 .tv_token.json
