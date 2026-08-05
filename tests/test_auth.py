@@ -293,6 +293,54 @@ class TestInitResolutionOrder:
             login.assert_called_once()
         assert tv.token == "LOGIN_TOK"
 
+    def test_session_cookies_beat_credentials_when_jwt_expired(self, tmp_path):
+        """Credentials must NOT pre-empt the session-cookie refresh.
+
+        The cookie branch used to sit AFTER the credential branch, so supplying
+        a username/password -- the normal case, they come from
+        TRADINGVIEW_USERNAME/PASSWORD in the environment -- made it unreachable.
+        Every expired JWT then went straight to a password login and hit
+        TradingView's `recaptcha_required`, taking the 15:30 NSE run offline on
+        2026-08-05 while a working sessionid sat unused in the same file.
+        """
+        cache = tmp_path / ".tv_token.json"
+        cache.write_text(
+            json.dumps(
+                {
+                    "token": make_jwt(int(time.time()) - 10),      # expired
+                    "cookies": {"sessionid": "S", "sessionid_sign": "X"},
+                }
+            )
+        )
+        session = MagicMock()
+        session.get.return_value.text = '{"auth_token":"eyJFROMCOOKIE"}'
+        session.get.return_value.raise_for_status.return_value = None
+        session.cookies.get.return_value = None
+        with patch("tvDatafeed.main.requests.Session", return_value=session), \
+             patch.object(TvDatafeed, "_login_and_get_token") as login:
+            tv = TvDatafeed(username="u", password="p", token_cache_file=cache)
+            tv._ensure_authenticated()
+            login.assert_not_called()          # never fall back to CAPTCHA path
+        assert tv.token == "eyJFROMCOOKIE"
+
+    def test_falls_back_to_login_when_session_cookie_is_dead(self, tmp_path):
+        """Cookies first, but a dead session must still reach the login path."""
+        cache = tmp_path / ".tv_token.json"
+        cache.write_text(
+            json.dumps(
+                {
+                    "token": make_jwt(int(time.time()) - 10),
+                    "cookies": {"sessionid": "DEAD", "sessionid_sign": "X"},
+                }
+            )
+        )
+        with patch.object(TvDatafeed, "_refresh_token_from_session", return_value=None), \
+             patch.object(TvDatafeed, "_login_and_get_token", return_value="LOGIN_TOK") as login:
+            tv = TvDatafeed(username="u", password="p", token_cache_file=cache)
+            tv._ensure_authenticated()
+            login.assert_called_once()
+        assert tv.token == "LOGIN_TOK"
+
 
 # --------------------------------------------------------------------------- #
 # __auth captures session cookies (uses requests.Session, not requests.post)

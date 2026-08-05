@@ -72,9 +72,14 @@ python -m build
 - `__auth` logs in via a `requests.Session`, captures the `sessionid` /
   `sessionid_sign` cookies, and `_save_token` persists both the token and
   cookies to `~/.tv_token.json`.
-- On init the resolution order is: valid cached JWT → username/password
-  login (only if credentials were supplied) → a fresh JWT minted from the
-  saved session cookies → anonymous. The session refresh is **lazy**: when
+- On init the resolution order is: valid cached JWT → a fresh JWT minted
+  from the saved session cookies → username/password login (only if
+  credentials were supplied) → anonymous. **The cookie refresh must come
+  before the credential login**: it was ordered after until 2026-08-05, which
+  made it unreachable whenever `TRADINGVIEW_USERNAME`/`PASSWORD` were set (the
+  normal case), so an expired JWT always went to a password login and hit
+  `recaptcha_required` — with a working sessionid sitting unused in the same
+  file. The session refresh is **lazy**: when
   only saved cookies are available, `__init__` records that auth is pending
   and `_ensure_authenticated` performs the (blocking) refresh on the first
   call that needs it, so construction never blocks the network for

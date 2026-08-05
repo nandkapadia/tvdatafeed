@@ -155,15 +155,26 @@ class TvDatafeed:
             # Fast path: the cached JWT is still good.
             self.token = cached_token
             logger.info("Using cached authentication token")
+        elif self._cookies:
+            # JWT expired but we hold the durable session cookies, which mint a
+            # fresh one WITHOUT a password login -- and therefore without
+            # TradingView's CAPTCHA. Deferred to first use so construction never
+            # blocks the network. _ensure_authenticated still falls back to
+            # username/password if the session cookie turns out to be dead too.
+            #
+            # This MUST be tried before the credential branch. When it was
+            # ordered after, supplying credentials (the normal case -- they come
+            # from TRADINGVIEW_USERNAME/PASSWORD in the environment) made this
+            # branch unreachable, so every expired JWT went straight to a
+            # password login and hit `recaptcha_required`. That took the whole
+            # 15:30 NSE run offline on 2026-08-05 while a perfectly good
+            # sessionid sat unused in the very same token file.
+            self._token_initialized = False
         elif username and password:
-            # Explicit credentials: authenticate eagerly, as requested.
+            # No usable session: authenticate with credentials.
             self.token = self._login_and_get_token(username, password)
             self._save_token(self.token)
             logger.info("Logged in successfully and cached token")
-        elif self._cookies:
-            # JWT expired but we have saved session cookies; defer the
-            # (network) refresh to first use instead of blocking __init__.
-            self._token_initialized = False
         else:
             logger.warning("Using anonymous access - data may be limited")
 
@@ -352,7 +363,25 @@ class TvDatafeed:
                 self._save_token(self.token)
                 logger.info("Refreshed authentication token from saved session")
             else:
-                logger.warning("Saved session could not be refreshed - using anonymous access")
+                # The session cookie is dead too. Credentials are the last
+                # resort -- worth a CAPTCHA risk, since the alternative is
+                # silently degrading to anonymous access and returning thin or
+                # empty data for every symbol. Reaching this branch became
+                # possible once the cookie refresh was ordered BEFORE the
+                # credential login in __init__; without it, a dead session
+                # would strand a fully-credentialed caller on anonymous.
+                username, password = self._credentials
+                if username and password:
+                    try:
+                        self.token = self._login_and_get_token(username, password)
+                        self._save_token(self.token)
+                        logger.info("Session dead; logged in with credentials")
+                    except ValueError as e:
+                        logger.error("Session dead and re-login failed: %s", e)
+                else:
+                    logger.warning(
+                        "Saved session could not be refreshed - using anonymous access"
+                    )
             self._token_initialized = True
 
     def _try_refresh_token(self, stale_token: str | None = None) -> bool:
